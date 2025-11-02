@@ -29,17 +29,15 @@ def fetch_ohlcv(ticker: str, start, end, interval: str = "1d") -> pd.DataFrame:
     ticker = str(ticker).upper().strip()
     start_dt = _parse_date(start); end_dt = _parse_date(end)
 
-    # 設置 session + headers（避免雲端被 403/風控）
+    # 先建立 session + UA（雲端比較不會被擋）
     sess = requests.Session()
     sess.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                      "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
     })
 
-    # ① 正常路徑：start/end
+    # ① 正常路徑：start/end 或 intraday 用 period
     try:
         if interval in _INTRADAY:
-            # intraday 改用 period，並限制可抓最大天數
             max_days = _INTRADAY[interval]
             start_dt = max(start_dt, end_dt - timedelta(days=max_days))
             period = f"{(end_dt - start_dt).days}d"
@@ -57,18 +55,17 @@ def fetch_ohlcv(ticker: str, start, end, interval: str = "1d") -> pd.DataFrame:
     except Exception:
         pass
 
-    # ② 後備方案：用 period（對日線也常更穩）
+    # ② 後備：日線也用 period（很多雲端情況更穩）
     try:
-        fallback_period = "2y" if interval in _INTRADAY else "5y"
+        fallback_period = "5y" if interval not in _INTRADAY else "2y"
         df = yf.download(ticker, period=fallback_period, interval=interval,
                          auto_adjust=True, progress=False, session=sess, threads=False)
         df = _rename_cols(df)
         if not df.empty:
-            # 依 start/end 再過濾
-            if "Date" in df.columns:
-                mask = (pd.to_datetime(df["Date"]) >= start_dt) & (pd.to_datetime(df["Date"]) <= end_dt)
-                df = df.loc[mask]
-            return df.reset_index(drop=True)
+            # 再用 start/end 篩掉
+            date_col = "Date" if "Date" in df.columns else df.columns[0]
+            mask = (pd.to_datetime(df[date_col]) >= start_dt) & (pd.to_datetime(df[date_col]) <= end_dt)
+            return df.loc[mask].reset_index(drop=True)
     except Exception:
         pass
 
@@ -80,13 +77,10 @@ def fetch_ohlcv(ticker: str, start, end, interval: str = "1d") -> pd.DataFrame:
         hist = _rename_cols(hist)
         if not hist.empty:
             hist = hist.reset_index()
-            # 同樣過濾區間
             date_col = "Date" if "Date" in hist.columns else hist.columns[0]
             mask = (pd.to_datetime(hist[date_col]) >= start_dt) & (pd.to_datetime(hist[date_col]) <= end_dt)
             return hist.loc[mask].reset_index(drop=True)
     except Exception:
         pass
-
-    # 如果三招都失敗，回空 DF
     return pd.DataFrame()
 
