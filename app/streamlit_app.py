@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
-from app.data import fetch_ohlcv
-from app.backtest import sma_crossover_bt
+from data import fetch_ohlcv
+from backtest import sma_crossover_bt
 
 st.set_page_config(page_title="美股查價與回測", layout="wide")
 
