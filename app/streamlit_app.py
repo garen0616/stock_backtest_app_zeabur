@@ -21,6 +21,7 @@ log_scale = st.checkbox("對數刻度", value=False)
 
 with st.spinner("下載資料中…"):
     df = fetch_ohlcv(ticker, str(start), str(end + timedelta(days=1)), interval=interval)
+    st.caption(f"Fetched {len(df)} rows for {ticker} @ {interval}")
 
 if df.empty:
     st.warning("查無資料，請換一個 Ticker 或調整日期區間。")
